@@ -1,34 +1,37 @@
-import ../../src/prologue
-import ../../src/prologue/middlewares/middlewares
-from ../../src/prologue/openapi/openapi import serveDocs
+import prologue
+import prologue/middlewares/staticfile
+import prologue/middlewares/utils
+from prologue/openapi import serveDocs
 
-import logging
+# import logging
 
 import views, urls
 
 let
   env = loadPrologueEnv(".env")
   settings = newSettings(appName = env.getOrDefault("appName", "Prologue"),
-                debug = env.getOrDefault("debug", true),
-                port = Port(env.getOrDefault("port", 8787)),
-                staticDirs = [env.get("staticDir")],
-                secretKey = env.getOrDefault("secretKey", "")
+                         debug = env.getOrDefault("debug", true),
+                         address = env.getOrDefault("address", ""),
+                         port = Port(env.getOrDefault("port", 8080)),
+                         secretKey = env.getOrDefault("secretKey", "")
     )
 
 
 proc setLoggingLevel() =
-  addHandler(newConsoleLogger())
-  logging.setLogFilter(lvlInfo)
+  discard
+  # addHandler(newConsoleLogger())
+  # logging.setLogFilter(lvlInfo)
 
-
-let 
+let
   event = initEvent(setLoggingLevel)
 var
-  app = newApp(settings = settings, middlewares = @[debugRequestMiddleware()], startup = @[event])
+  app = newApp(settings = settings,
+               startup = @[event])
 
-
+app.use(staticFileMiddleware(env.get("staticDir")))
+app.use(debugRequestMiddleware())
 app.addRoute(urls.urlPatterns, "/todolist")
-# only sopport (?P<name>exp)
+# only supports (?P<name>exp)
 app.addRoute(re"/post(?P<num>[\d]+)", articles, HttpGet)
 app.addRoute(re"/post(?P<name>[\d]+)", articles, HttpGet)
 
@@ -47,5 +50,6 @@ app.addRoute("/multipart", multiPart, HttpGet)
 app.addRoute("/multipart", do_multiPart, HttpPost)
 app.addRoute("/upload", upload, HttpGet)
 app.addRoute("/upload", do_upload, HttpPost)
-app.serveDocs()
+# server openapi
+app.serveDocs("docs/openapi.json")
 app.run()

@@ -1,55 +1,65 @@
-import options
+import std/[options, strtabs, asyncdispatch, json]
 
 
-from cookiejar import SameSite
-
-import ../../core/dispatch
-from ../../core/types import BadSecretKeyError, SecretKey, loads, dumps, len
+from ../../core/types import BadSecretKeyError, SecretKey, loads, dumps, len, newSession
 from ../../core/context import Context, HandlerAsync, getCookie, setCookie,
     deleteCookie
 from ../../core/response import addHeader
-from ../../core/signing/signing import DefaultSep, DefaultKeyDerivation,
+from ../../signing/signing import DefaultSep, DefaultKeyDerivation,
     BadTimeSignatureError, SignatureExpiredError, DefaultDigestMethodType,
         initTimedSigner, unsign, sign
 from ../../core/middlewaresbase import switch
+from ../../core/urandom import randomString
+from ../../core/nativesettings import Settings, `[]`
+
+from pkg/cookiejar import SameSite
+
+export cookiejar
 
 
 proc sessionMiddleware*(
-  secretKey: SecretKey,
-  sessionName: string = "session",
-  salt = "prologue.signedcookiesession",
-  sep = DefaultSep,
-  keyDerivation = DefaultKeyDerivation,
-  digestMethodType = DefaultDigestMethodType,
+  settings: Settings,
+  sessionName = "session",
   maxAge: int = 14 * 24 * 60 * 60, # 14 days, in seconds
   path = "",
   domain = "",
   sameSite = Lax,
   httpOnly = false
-  ): HandlerAsync =
+): HandlerAsync =
 
+  var secretKey = settings["prologue"].getOrDefault("secretKey").getStr
   if secretKey.len == 0:
-    raise newException(BadSecretKeyError, "The length of secret key can't be zero")
-  
-  let signer = initTimedSigner(secretKey, salt, sep, keyDerivation, digestMethodType)
-  
+    secretKey = randomString(16)
+
+  let
+    salt = "prologue.signedcookiesession"
+    sep = DefaultSep
+    keyDerivation = DefaultKeyDerivation
+    digestMethodType = DefaultDigestMethodType
+    signer = initTimedSigner(SecretKey(secretKey), salt, sep, keyDerivation, digestMethodType)
+
   result = proc(ctx: Context) {.async.} =
-    # TODO make sure {':', ',', '}'} notin key or value
+    ctx.session = newSession(data = newStringTable(modeCaseSensitive))
     let
       data = ctx.getCookie(sessionName)
 
-    try:
-      ctx.session.loads(signer.unsign(data, maxAge))
-    except BadTimeSignatureError, SignatureExpiredError, ValueError:
-      # BadTimeSignature, SignatureExpired or ValueError
-      discard
+    if data.len != 0:
+      try:
+        ctx.session.loads(signer.unsign(data, maxAge))
+      except BadTimeSignatureError, SignatureExpiredError, ValueError, IndexDefect:
+        ctx.deleteCookie(sessionName, domain = domain,
+                path = path) # delete session data in cookie
+      except Exception as e:
+        ctx.deleteCookie(sessionName, domain = domain,
+                path = path) # delete session data in cookie
+        raise e
 
     await switch(ctx)
 
     if ctx.session.len == 0: # empty or modified(del or clear)
       if ctx.session.modified: # modified
         ctx.deleteCookie(sessionName, domain = domain,
-                         path = path) # delete session data in cookie
+                        path = path) # delete session data in cookie
       return
 
     if ctx.session.accessed:

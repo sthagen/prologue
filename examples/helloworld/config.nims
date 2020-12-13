@@ -1,4 +1,3 @@
-switch("threads", "on")
-
-when (NimMajor, NimMinor) > (1, 1):
-  switch("gc", "arc")
+switch("path", "$projectDir/../../src")
+when not defined(windows):
+  switch("threads", "on")

@@ -1,5 +1,3 @@
-import utils, cors, clickjacking
+import ./utils, ./cors, ./clickjacking, ./csrf, ./auth
 
-import sessions/signedcookiesession
-
-export utils, cors, signedcookiesession, clickjacking
+export utils, cors, clickjacking, csrf, auth

@@ -1,15 +1,18 @@
-import htmlgen
+import std/htmlgen
+import ./constants
 
 
-proc errorPage*(errorMsg: string, version: string): string =
+func errorPage*(errorMsg: string): string {.inline.} =
+  ## Error pages for HTTP 404.
   result = html(head(title(errorMsg)),
                 body(h1(errorMsg),
                      "<hr/>",
-                     p("Prologue " & version),
+                     p("Prologue " & PrologueVersion),
                      style = "text-align: center;"),
                 xmlns = "http://www.w3.org/1999/xhtml")
 
-proc loginPage*(): string =
+func loginPage*(): string {.inline.} =
+  ## Login pages.
   result = html(form(action = "/login",
                 `method` = "post",
                 "Username: ", input(name = "username", `type` = "text"),
@@ -17,7 +20,8 @@ proc loginPage*(): string =
                 input(value = "login", `type` = "submit")),
                 xmlns = "http://www.w3.org/1999/xhtml")
 
-proc multiPartPage*(): string =
+func multiPartPage*(): string {.inline.} =
+  ## Multipart pages for uploading files.
   result = html(form(action = "/multipart?firstname=red green&lastname=tenth",
                `method` = "post", enctype = "multipart/form-data",
                 input(name = "username", `type` = "text", value = "play game"),
@@ -25,7 +29,8 @@ proc multiPartPage*(): string =
                 input(value = "submit", `type` = "submit")),
                 xmlns = "http://www.w3.org/1999/xhtml")
 
-proc internalServerErrorPage*(): string {.inline.} =
+func internalServerErrorPage*(): string {.inline.} =
+  ## Internal server error pages for HTTP 500.
   result = """<html>
 
 <head>

@@ -1,14 +1,28 @@
-import httpcore
-import strtabs, strutils, strformat, parseutils, tables
+# Copyright 2020 Zeshen Xing
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
 
+
+import std/[strtabs, strutils, strformat, parseutils, tables]
 from cgi import decodeData
 
+import ./httpcore/httplogue
 from ./types import FormPart, initFormPart, `[]=`
 import ./request
 
 
-proc parseFormPart*(body, contentType: string): FormPart {.inline.} =
-  # parse form
+func parseFormPart*(body, contentType: string): FormPart =
+  ## Parses form part of the body of the request.
   let
     sep = contentType[contentType.rfind("boundary") + 9 .. ^1]
     startSep = fmt"--{sep}"
@@ -34,7 +48,7 @@ proc parseFormPart*(body, contentType: string): FormPart {.inline.} =
 
     pos += parseUntil(data, head, "\c\L\c\L")
     inc(pos, 4)
-    tail = data[pos ..< ^1]
+    tail = data[pos ..< ^2] # 2 because of protocol newline after content disposition body
 
     if not head.startsWith("Content-Disposition"):
       break
@@ -73,23 +87,20 @@ proc parseFormPart*(body, contentType: string): FormPart {.inline.} =
 
     result.data[name].body = tail
 
-proc parseFormParams*(request: var Request, contentType: string) =
-  # get or post forms params
+func parseFormParams*(request: var Request, contentType: string) =
+  ## Parses get or post or query parameters.
   if "form-urlencoded" in contentType:
     request.formParams = initFormPart()
-    case request.reqMethod
-    of HttpPost:
+    if request.reqMethod == HttpPost:
       for (key, value) in decodeData(request.body):
         # formPrams and postParams for secret event
         request.formParams[key] = value
         request.postParams[key] = value
-    else:
-      discard
-
   elif "multipart/form-data" in contentType and "boundary" in contentType:
     request.formParams = parseFormPart(request.body, contentType)
 
   # /student?name=simon&age=sixteen
   # query -> name=simon&age=sixteen
+
   for (key, value) in decodeData(request.query):
     request.queryParams[key] = value

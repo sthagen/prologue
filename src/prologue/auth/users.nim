@@ -2,15 +2,15 @@ from ../core/types import SecretKey
 
 
 type
-  User* = ref object of RootObj
+  User* = object of RootObj
     username: string
     password: SecretKey
     email: string
     firstName, lastName: string
 
-  SuperUser* = ref object of User
+  SuperUser* = object of User
 
-proc initUser*(username: string, password: SecretKey, email, firstName,
-    lastName = ""): User =
+func initUser*(username: string, password: SecretKey, email, firstName,
+    lastName = ""): User {.inline.} =
   User(username: username, password: password, email: email,
       firstName: firstName, lastName: lastName)

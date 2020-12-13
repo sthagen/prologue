@@ -1,14 +1,33 @@
-import httpcore
-import logging, strtabs, strutils
+# Copyright 2020 Zeshen Xing
+# 
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+# 
+#     http://www.apache.org/licenses/LICENSE-2.0
+# 
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
 
+import std/[logging, strtabs, strutils, asyncdispatch]
 
-import ../core/dispatch
 from ../core/context import Context, HandlerAsync
 from ../core/middlewaresbase import switch
 import ../core/request
+import ../core/httpcore/httplogue
 
 
-proc loggingMiddleware*(appName = "Starlight"): HandlerAsync =
+proc testMiddleware*(): HandlerAsync =
+  result = proc(ctx: Context) {.async.} =
+    logging.info "debug->begin"
+    await switch(ctx)
+    logging.info "debug->end"
+
+
+proc loggingMiddleware*(appName = "Prologue"): HandlerAsync =
   result = proc(ctx: Context) {.async.} =
     logging.info "loggingMiddleware->begin"
     logging.debug "============================"
@@ -19,7 +38,7 @@ proc loggingMiddleware*(appName = "Starlight"): HandlerAsync =
     logging.info "loggingMiddleware->end"
     await switch(ctx)
 
-proc debugRequestMiddleware*(appName = "Starlight"): HandlerAsync =
+proc debugRequestMiddleware*(appName = "Prologue"): HandlerAsync =
   result = proc(ctx: Context) {.async.} =
     logging.info "debugRequestMiddleware->begin"
     logging.debug "============================"
@@ -33,7 +52,7 @@ proc debugRequestMiddleware*(appName = "Starlight"): HandlerAsync =
     logging.info "debugRequestMiddleware->end"
     await switch(ctx)
 
-proc debugResponseMiddleware*(appName = "Starlight"): HandlerAsync =
+proc debugResponseMiddleware*(appName = "Prologue"): HandlerAsync =
   result = proc(ctx: Context) {.async.} =
     await switch(ctx)
     logging.info "debugResponseMiddleware->begin"
@@ -44,7 +63,7 @@ proc debugResponseMiddleware*(appName = "Starlight"): HandlerAsync =
     logging.debug "============================"
     logging.info "debugResponseMiddleware->end"
 
-proc stripPathMiddleware*(appName = "Starlight"): HandlerAsync =
+proc stripPathMiddleware*(appName = "Prologue"): HandlerAsync =
   result = proc(ctx: Context) {.async.} =
     logging.info "stripPathMiddleware->begin"
     logging.debug "============================"

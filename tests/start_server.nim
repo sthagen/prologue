@@ -1,74 +1,81 @@
 import ../src/prologue except loginPage
-import ../src/prologue/middlewares/middlewares
-import ../src/prologue/i18n/i18n
-import logging, os, strformat, strutils
+import ../src/prologue/middlewares/utils as ut
+import ../src/prologue/middlewares/staticfile
+import ../src/prologue/i18n
 
-import test_core/utils
+import std/[with, os, strformat, strutils]
+
+import ./server/utils
 
 
 proc hello*(ctx: Context) {.async.} =
-  logging.debug "hello"
   resp "<h1>Hello, Prologue!</h1>"
 
 proc home*(ctx: Context) {.async.} =
-  logging.debug "home"
   resp "<h1>Home</h1>"
 
 proc helloName*(ctx: Context) {.async.} =
-  logging.debug "helloname"
   resp "<h1>Hello, " & ctx.getPathParams("name", "Prologue!") & "</h1>"
 
 proc redirectHome*(ctx: Context) {.async.} =
-  logging.debug "redirectHome"
   resp redirect("/home")
 
 proc loginGet*(ctx: Context) {.async.} =
-  logging.debug "login get"
   resp loginGetPage()
 
 proc doLoginGet*(ctx: Context) {.async.} =
-  logging.debug "doLogin get"
   resp redirect("/hello/Nim")
 
 proc login*(ctx: Context) {.async.} =
-  logging.debug "log post"
   resp loginPage()
 
 proc doLogin*(ctx: Context) {.async.} =
-  logging.debug "doLogin post"
   resp redirect("/hello/Nim")
 
 proc translate*(ctx: Context) {.async.} =
   let zh_CN = ctx.setLanguage("zh_CN")
-  assert zh_CN.Tr("Hello") == "你好"
+  doAssert zh_CN.Tr("Hello") == "你好"
   let ja = ctx.setLanguage("ja")
-  assert ja.Tr("Hello") == "こんにちは"
-  assert ctx.translate("Hello", "zh_CN") == "你好"
-  assert ctx.translate("Hello", "ja") == "こんにちは"
+  doAssert ja.Tr("Hello") == "こんにちは"
+  doAssert ctx.translate("Hello", "zh_CN") == "你好"
+  doAssert ctx.translate("Hello", "ja") == "こんにちは"
   resp "I'm ok."
 
 proc upload(ctx: Context) {.async.} =
   if ctx.request.reqMethod == HttpGet:
-    await ctx.staticFileResponse("tests/static/upload.html", "")
+    await ctx.staticFileResponse("tests/assets/static/upload.html", "")
   elif ctx.request.reqMethod == HttpPost:
     let 
       file = ctx.getUploadFile("file")
-    resp fmt"<html><h1>{file.filename}</h1><p>{file.body.strip()}</p></html>"
+    resp fmt"<html><h1>{file.filename}</h1><p>{file.body}</p></html>"
+
+proc cookie(ctx: Context) {.async.} =
+  ctx.setCookie("One", "ok")
+  ctx.setCookie("Two", "done")
+  resp "Hello"
+
+  doAssert ctx.response.headers["Set-Cookie"] == 
+            @["One=ok; SameSite=Lax", "Two=done; SameSite=Lax"]
 
 
-let settings = newSettings(appName = "StarLight", debug = true, port = Port(8787))
-var app = newApp(settings = settings, middlewares = @[])
-app.addRoute("", home, HttpGet)
-app.addRoute("/", home, HttpGet)
-app.addRoute("/home", home, HttpGet, middlewares = @[debugRequestMiddleware()])
-app.addRoute("/hello", hello, HttpGet)
-app.addRoute("/redirect", redirectHome, HttpGet)
-app.addRoute("/loginget", loginGet, HttpGet)
-app.addRoute("/loginpage", doLoginGet, HttpGet)
-app.addRoute("/login", login, HttpGet)
-app.addRoute("/login", doLogin, HttpPost)
-app.addRoute("/hello/{name}", helloName, HttpGet)
-app.addRoute("/translate", translate)
-app.addRoute("/upload", upload, @[HttpGet, HttpPost])
-app.loadTranslate(expandFileName("tests/i18n/trans.ini"))
-app.run()
+let settings = newSettings(appName = "Prologue", debug = false, port = Port(8080))
+var app = newApp(settings = settings)
+
+with app:
+  addRoute("/", home, HttpGet)
+  addRoute("/home", home, HttpGet, middlewares = @[debugRequestMiddleware()])
+  addRoute("/hello", hello, HttpGet)
+  addRoute("/redirect", redirectHome, HttpGet)
+  addRoute("/loginget", loginGet, HttpGet)
+  addRoute("/loginpage", doLoginGet, @[HttpGet, HttpPost])
+  addRoute("/login", login, HttpGet)
+  addRoute("/login", doLogin, HttpPost)
+  addRoute("/hello/{name}", helloName, HttpGet)
+  addRoute("/translate", translate)
+  addRoute("/upload", upload, @[HttpGet, HttpPost])
+  get("/cookie", cookie)
+
+  get("/favicon.ico", redirectTo("tests/static/favicon.ico"))
+  get("/favicon", redirectTo("/tests/static/favicon.ico"))
+  loadTranslate(expandFileName("tests/assets/i18n/trans.ini"))
+  run()

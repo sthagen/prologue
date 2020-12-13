@@ -1,23 +1,37 @@
 site_name: Prologue
-site_description:  Medium scale Web Framework.
+site_description: Prologue is an elegant and high performance web framework written in Nim language.
 
 theme:
     name: 'material'
 
 repo_name: planety/prologue
 repo_url: https://github.com/planety/prologue
-edit_uri: ""
+edit_uri: "https://github.com/planety/prologue/tree/devel/docs"
 
 nav:
     - Introduction: "index.md"
     - QuickStart: "quickstart.md"
-    - Application: "application.md"
+    - Configure: "configure.md"
+    - Event: "event.md"
+    - Error Handler: "errorhandler.md"
+    - Headers: "headers.md"
     - Requests: "request.md"
     - Response: "response.md"
     - Context: "context.md"
-    - Route: "route.md"
+    - Routing: "routing.md"
     - Middleware: "middleware.md"
     - Static Files: "staticfiles.md"
+    - Upload Files: "uploadfile.md"
+    - Session: "session.md"
+    - Mocking: "mocking.md"
+    - Server Settings: "server.md"
+    - Extend Context: "extendctx.md"
+    - WebSocket: "websocket.md"
+    - Command Line Tool: "cli.md"
+    - Views: "views.md"
+    - OpenAPI: "openapi.md"
+    - Validation: "validation.md"
+    - FAQ: "faq.md"
 
 
 markdown_extensions:

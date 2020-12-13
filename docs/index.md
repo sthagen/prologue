@@ -1,53 +1,55 @@
+![Build Status](https://github.com/planety/prologue/workflows/Test%20Prologue/badge.svg)
+[![Build Status](https://dev.azure.com/xzsflywind/xlsx/_apis/build/status/planety.prologue?branchName=devel)](https://dev.azure.com/xzsflywind/xlsx/_build/latest?definitionId=4&branchName=devel)
+![Build Status](https://travis-ci.org/planety/prologue.svg?branch=devel)
+
 [![License: BSD-3-Clause](https://img.shields.io/github/license/planety/prologue)](https://opensource.org/licenses/BSD-3-Clause)
 [![Version](https://img.shields.io/github/v/release/planety/prologue?include_prereleases)](https://github.com/planety/prologue/releases)
+[![buy me a coffee](https://img.shields.io/badge/donate-buy%20me%20a%20coffee-orange.svg)](https://github.com/planety/prologue#donations)
 
 
 # Prologue
+
 What's past is prologue.
 
 ## Purpose
-`Prologue` is a Full-Stack Web Framework which is
-ideal for building elegant and high performance
-web services.
 
+`Prologue` is a web framework written in Nim.
+It is ideal for building elegant and high performance web services.
 
-## Feature
+**Reduce magic. Reduce surprise.**
 
-- Base on httpbeast and asynchttpserver
-- Configure and Settings
-- Context
-- Param and Query Data
-- Form Data
-- Static Files
-- Middleware
-- Data Validation
-- Startup and Shutdown Events
-- Simple Route
-- Regex Route
-- CORS Response
-- Cross-Site Request Forgery
-- Cross-Site Scripting (XSS) Protection(Karax quote string automatically)
-- Clickjacking Protection
-- Exception Handler
-- Signing
-- Cookie
-- Session
-- Cache
-- URL Building
-- Authentication
-- i18n
-- Minimal OpenApi support
-- Template(Using Karax Native or Using Nim Filter)
-- Test Client(Using httpclient)
+## Documentation
+
+<table class="tg">
+<tbody>
+  <tr>
+    <td class="tg-0pky">Documentation</td>
+    <td class="tg-c3ow" colspan="2"><a href="https://planety.github.io/prologue" target="_blank" rel="noopener noreferrer">Index Page</a></td>
+  </tr>
+  <tr>
+    <td class="tg-c3ow">Core API</td>
+    <td class="tg-0pky"><a href="https://planety.github.io/prologue/coreapi/theindex.html" target="_blank" rel="noopener noreferrer">Index Page</a></td>
+    <td class="tg-0pky"><a href="https://planety.github.io/prologue/coreapi/application.html" target="_blank" rel="noopener noreferrer">Search Page</a></td>
+  </tr>
+  <tr>
+    <td class="tg-c3ow">Full API</td>
+    <td class="tg-0pky"><a href="https://planety.github.io/prologue/plugin/theindex.html" target="_blank" rel="noopener noreferrer">Index Page</a></td>
+    <td class="tg-0pky"><a href="https://planety.github.io/prologue/plugin/plugin.html" target="_blank" rel="noopener noreferrer">Search Page</a></td>
+  </tr>
+</tbody>
+</table>
 
 ## Installation
-First you should install [Nim](https://nim-lang.org/) language which is an elegant and high performance language.Follow the [instructions](https://nim-lang.org/install.html) and set environment variables correctly.
+
+First you should install [Nim](https://nim-lang.org/) language which is an elegant and high performance language. Follow the [instructions](https://nim-lang.org/install.html) and set environment variables correctly.
 
 Then you can use `nimble` command to install prologue.
 
 ```bash
-nimble install prologue@#head
+nimble install prologue
 ```
+
+`Prologue` also provides some extensions. You can use `logue extension` to install all of them. If you just want to install one of them, you can use `logue extension module` for example `logue extension redis`.
 
 ## Usage
 
@@ -57,25 +59,22 @@ nimble install prologue@#head
 # app.nim
 import prologue
 
-
 proc hello*(ctx: Context) {.async.} =
   resp "<h1>Hello, Prologue!</h1>"
 
-
-let settings = newSettings()
-var app = newApp(settings = settings)
+let app = newApp()
 app.addRoute("/", hello)
 app.run()
 ```
 
-Run **app.nim**.Now the server is running at localhost:8080.
+Run **app.nim** ( `nim c -r app.nim` ). Now the server is running at `localhost:8080`.
 
-### Another Example
+### Another example
 
 ```nim
 # app.nim
 import prologue
-import prologue/middlewares/middlewares
+import prologue/middlewares
 
 
 # Async Function
@@ -85,6 +84,9 @@ proc home*(ctx: Context) {.async.} =
 proc helloName*(ctx: Context) {.async.} =
   resp "<h1>Hello, " & ctx.getPathParams("name", "Prologue") & "</h1>"
 
+proc doRedirect*(ctx: Context) {.async.} =
+  resp redirect("/hello")
+
 proc login*(ctx: Context) {.async.} =
   resp loginPage()
 
@@ -92,77 +94,39 @@ proc do_login*(ctx: Context) {.async.} =
   resp redirect("/hello/Nim")
 
 
-let settings = newSettings(appName = "StarLight")
-var app = newApp(settings = settings, middlewares = @[debugRequestMiddleware()])
+let settings = newSettings(appName = "Prologue")
+var app = newApp(settings = settings)
+app.use(debugRequestMiddleware())
 app.addRoute("/", home, @[HttpGet, HttpPost])
 app.addRoute("/home", home, HttpGet)
-app.addRoute("/redirect", testRedirect, HttpGet)
+app.addRoute("/redirect", doRedirect, HttpGet)
 app.addRoute("/login", login, HttpGet)
-app.addRoute("/login", do_login, HttpPost, @[debugRequestMiddleware()])
+app.addRoute("/login", do_login, HttpPost, middlewares = @[debugRequestMiddleware()])
 app.addRoute("/hello/{name}", helloName, HttpGet)
 app.run()
 ```
 
-Run **app.nim**.Now the server is running at localhost:8080.
+Run **app.nim** (`nim c -r app.nim`). Now the server is running at `localhost:8080`.
 
-### URLs Files
-**views.nim**
+### More examples
+- [HelloWorld](https://github.com/planety/prologue/tree/devel/examples/helloworld)
+- [ToDoList](https://github.com/planety/prologue/tree/devel/examples/todolist)
+- [ToDoApp](https://github.com/planety/prologue/tree/devel/examples/todoapp)
+- [Blog](https://github.com/planety/prologue/tree/devel/examples/blog)
+- [Additional examples repository](https://github.com/planety/prologue-examples)
 
-```nim
-import prologue
+### Extensions
 
+If you need more extensions, you can refer to [awesome prologue](https://github.com/planety/awesome-prologue) and [awesome nim](https://github.com/xflywind/awesome-nim#web).
 
-proc index*(ctx: Context) {.async.} =
-  resp "<h1>Hello, Prologue!</h1>"
+## Donations
 
-proc hello*(ctx: Context) {.async.} =
-  echo ctx.getQueryParams("name", "")
-  resp "<h1>Home</h1>"
-```
+Thanks for supporting me.
 
-**URLs.nim**
+[buy me a coffee](https://www.buymeacoffee.com/flywind)
 
-```nim
-import prologue
-
-import views
+[patreon](https://www.patreon.com/flywind)
 
 
-let urlPatterns* = @[
-  pattern("/", index),
-  pattern("/", index, HttpPost),
-  pattern("/hello/{name}", hello),
-]
-```
-
-**app.nim**
-
-```nim
-import prologue
-
-import views, urls
-
-
-# read environment variables from file
-# Make sure ".env" in your ".gitignore" file.
-let 
-  env = loadPrologueEnv(".env")
-  settings = newSettings(appName = env.getOrDefault("appName", "Prologue"),
-                debug = env.getOrDefault("debug", true), 
-                port = Port(env.getOrDefault("port", 8080)),
-                staticDirs = [env.get("staticDir")],
-                secretKey = env.getOrDefault("secretKey", "")
-                )
-
-var app = newApp(settings = settings)
-app.addRoute(urls.urlPatterns, "/api")
-app.addRoute("/", index, HttpGet)
-app.run()
-```
-
-Run **app.nim**.Now the server is running at localhost:8080.
-
-### More Examples
-- [HelloWorld](https://github.com/planety/prologue/tree/master/examples/helloworld)
-- [ToDoList](https://github.com/planety/prologue/tree/master/examples/todolist)
-- [Blog](https://github.com/planety/prologue/tree/master/examples/blog)
+## Stars
+[![Stargazers over time](https://starchart.cc/planety/prologue.svg)](https://starchart.cc/planety/prologue)

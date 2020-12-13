@@ -1,106 +1,142 @@
-import httpcore
-import times, json, strformat, options, macros
+import std/[times, json, strformat, options, macros]
 
-import cookiejar
+import ./httpcore/httplogue
+
+import pkg/cookiejar
 
 
 type
-  Response* = object
+  Response* = object            ## Response object.
     httpVersion*: HttpVersion
     code*: HttpCode
-    headers*: HttpHeaders
+    headers*: ResponseHeaders
     body*: string
 
 
-proc `$`*(response: Response): string =
+func `$`*(response: Response): string =
+  ## Gets the string form of `Response`.
   fmt"{response.code} {response.headers}"
 
-proc initResponse*(httpVersion: HttpVersion, code: HttpCode, headers =
-                   {"Content-Type": "text/html; charset=UTF-8"}.newHttpHeaders,
-                   body = ""): Response =
+func initResponse*(httpVersion: HttpVersion, code: HttpCode, headers =
+                   {"Content-Type": "text/html; charset=UTF-8"}.initResponseHeaders,
+                   body = ""): Response {.inline.} =
+  ## Initializes a response.
   Response(httpVersion: httpVersion, code: code, headers: headers, body: body)
 
-proc hasHeader*(response: Response, key: string): bool {.inline.} =
+func initResponse*(httpVersion: HttpVersion, code: HttpCode, 
+                   headers: openArray[(string, string)],
+                   body = ""): Response {.inline.} =
+  ## Initializes a response.
+  Response(httpVersion: httpVersion, code: code,
+           headers: headers.initResponseHeaders, body: body)
+
+template hasHeader*(response: Response, key: string): bool =
+  ## Returns true if key is in the `response`.
   response.headers.hasKey(key)
 
-proc setHeader*(response: var Response, key, value: string) {.inline.} =
+template getHeader*(response: Response, key: string): seq[string] =
+  ## Retrieves value of `response.headers[key]`.
+  response.headers[key]
+
+template getHeaderOrDefault*(response: Response, key: string, default = @[""]): seq[string] =
+  ## Retrieves value of `response.headers[key]`. Otherwise `default` will be returned.
+  response.headers.getOrDefault(key, default)
+
+template setHeader*(response: var Response, key, value: string) =
+  ## Sets the header values of the response.
   response.headers[key] = value
 
-proc setHeader*(response: var Response, key: string, value: sink seq[string]) {.inline.} =
+template setHeader*(response: var Response, key: string, value: seq[string]) =
+  ## Sets the header values of the response.
   response.headers[key] = value
 
-proc addHeader*(response: var Response, key, value: string) {.inline.} =
+template addHeader*(response: var Response, key, value: string) =
+  ## Adds header values to the existing `HttpHeaders`.
   response.headers.add(key, value)
 
-proc setCookie*(response: var Response, key, value: string, expires = "",
+template setCookie*(response: var Response, key, value: string, expires = "",
                 maxAge: Option[int] = none(int), domain = "", path = "", secure = false,
-                httpOnly = false, sameSite = Lax) {.inline.} =
+                httpOnly = false, sameSite = Lax) =
+  ## Sets the cookie of response.
   let cookies = initCookie(key, value, expires, maxAge, domain, 
                            path, secure, httpOnly, sameSite)
   response.addHeader("Set-Cookie", $cookies)
 
-proc setCookie*(response: var Response, key, value: string, expires: DateTime|Time, 
+template setCookie*(response: var Response, key, value: string, expires: DateTime|Time, 
                 maxAge: Option[int] = none(int), domain = "",
-                path = "", secure = false, httpOnly = false, sameSite = Lax) {.inline.} =
+                path = "", secure = false, httpOnly = false, sameSite = Lax) =
+  ## Sets the cookie of response.
   let cookies = initCookie(key, value, expires, maxAge, domain, 
                           path, secure, httpOnly, sameSite)
   response.addHeader("Set-Cookie", $cookies)
 
-proc deleteCookie*(response: var Response, key: string, value = "", path = "",
-                   domain = "") {.inline.} =
+template deleteCookie*(response: var Response, key: string, value = "", path = "",
+                   domain = "") =
+  ## Deletes the cookie of the response.
   response.setCookie(key, value, expires = secondsForward(0), maxAge = some(0),
                      path = path, domain = domain)
 
-proc abort*(code = Http401, body = "", headers = newHttpHeaders(),
+func abort*(code = Http401, body = "", headers = initResponseHeaders(),
             version = HttpVer11): Response {.inline.} =
+  ## Returns the response with Http401 code(do not raise exception).
   result = initResponse(version, code = code, body = body,
                         headers = headers)
 
-proc redirect*(url: string, code = Http301,
-               body = "", delay = 0, headers = newHttpHeaders(),
+func redirect*(url: string, code = Http301,
+               body = "", delay = 0, headers = initResponseHeaders(),
                version = HttpVer11): Response {.inline.} =
-  ## redirect to new url.
-  if delay == 0:
-    headers.add("Location", url)
-  else:
-    headers.add("refresh", &"{delay};url=\"{url}\"")
+  ## Redirects to new url.
   result = initResponse(version, code = code, headers = headers, body = body)
+  
+  if delay == 0:
+    result.headers.add("Location", url)
+  else:
+    result.headers.add("refresh", &"{delay};url=\"{url}\"")
 
-proc error404*(code = Http404,
-               body = "<h1>404 Not Found!</h1>", headers = newHttpHeaders(),
+func error404*(code = Http404,
+               body = "<h1>404 Not Found!</h1>", headers = initResponseHeaders(),
                version = HttpVer11): Response {.inline.} =
+  ## Creates an error 404 response.
   result = initResponse(version, code = code, body = body, headers = headers)
 
-proc htmlResponse*(text: string, code = Http200, headers = newHttpHeaders(),
+func htmlResponse*(text: string, code = Http200, headers = initResponseHeaders(),
                    version = HttpVer11): Response {.inline.} =
-  ## Content-Type": "text/html; charset=UTF-8
-  headers["Content-Type"] = "text/html; charset=UTF-8"
+  ## Content-Type: text/html; charset=UTF-8.
   result = initResponse(version, code, headers, body = text)
+  result.headers["Content-Type"] = "text/html; charset=UTF-8"
 
-proc plainTextResponse*(text: string, code = Http200,
-                        headers = newHttpHeaders(), version = HttpVer11): Response {.inline.} =
-  ## Content-Type": "text/plain
-  headers["Content-Type"] = "text/plain"
+func plainTextResponse*(text: string, code = Http200,
+                        headers = initResponseHeaders(), version = HttpVer11): Response {.inline.} =
+  ## Content-Type: text/plain.
   result = initResponse(version, code, headers, body = text)
+  result.headers["Content-Type"] = "text/plain"
 
-proc jsonResponse*(text: JsonNode, code = Http200, headers = newHttpHeaders(),
-    version = HttpVer11): Response {.inline.} =
-  ## Content-Type": "application/json
-  headers["Content-Type"] = "text/json"
+func jsonResponse*(text: JsonNode, code = Http200, headers = initResponseHeaders(),
+                   version = HttpVer11): Response {.inline.} =
+  ## Content-Type: application/json.
   result = initResponse(version, code, headers, body = $text)
+  result.headers["Content-Type"] = "application/json"
 
-macro resp*(body: string, code = Http200) =
-  ## handy to make ctx's response
+macro respDefault*(code: HttpCode) =
+  ## Uses default error handler registered in the error handler table if existing.
   var ctx = ident"ctx"
 
   result = quote do:
-    let response = initResponse(httpVersion = HttpVer11, code = `code`,
-                                headers = {"Content-Type": "text/html; charset=UTF-8"}.newHttpHeaders,
-                                body = `body`)
-    `ctx`.response = response
+    `ctx`.response.code = `code`
+    `ctx`.response.body.setLen(0)
+
+macro resp*(body: string, code = Http200, version = HttpVer11) =
+  ## Handy to make a response of ctx.
+  var ctx = ident"ctx"
+
+  result = quote do:
+    `ctx`.response.httpVersion = `version`
+    `ctx`.response.code = `code`
+    `ctx`.response.body = `body`
+
 
 macro resp*(response: Response) =
-  ## handy to make ctx's response
+  ## Handy to make a response of ctx.
   var ctx = ident"ctx"
 
   result = quote do:

@@ -1,12 +1,10 @@
-import httpcore, strtabs, json
-from asynchttpserver import newAsyncHttpServer, serve, close, AsyncHttpServer
+import std/[strtabs, json, asyncdispatch]
+from std/asynchttpserver import newAsyncHttpServer, serve, close, AsyncHttpServer
 
-
-import ../dispatch
 from ./request import NativeRequest
-from ../nativesettings import Settings, CtxSettings, getOrDefault
+from ../nativesettings import Settings, CtxSettings, `[]`
 from ../context import Router, ReversedRouter, ReRouter, HandlerAsync,
-    Event, ErrorHandlerTable, GlobalScope
+          Event, ErrorHandlerTable, GlobalScope, execEvent
 
 
 type
@@ -21,21 +19,30 @@ type
     errorHandlerTable*: ErrorHandlerTable
 
 
-proc serve*(app: Prologue, port: Port,
-            callback: proc (request: NativeRequest): Future[void] {.closure, gcsafe.},
-            address = "") {.inline.} =
-  waitFor app.server.serve(port, callback, address)
+proc execStartupEvent*(app: Prologue) =
+  for event in app.startup:
+    execEvent(event)
 
-proc newPrologueServer*(reuseAddr = true, reusePort = false,
-                        maxBody = 8388608): Server {.inline.} =
+proc serve*(app: Prologue,
+            callback: proc (request: NativeRequest): Future[void] {.closure, gcsafe.},
+           ) {.inline.} =
+  ## Serves a new web application.
+  waitFor app.server.serve(app.gScope.settings.port, callback, app.gScope.settings.address)
+
+func newPrologueServer(reuseAddr = true, reusePort = false,
+                       maxBody = 8388608): Server {.inline.} =
   newAsyncHttpServer(reuseAddr, reusePort, maxBody)
 
-proc newPrologue*(settings: Settings, ctxSettings: CtxSettings, router: Router,
-                  reversedRouter: ReversedRouter, reRouter: ReRouter,
-                  middlewares: seq[HandlerAsync], startup: seq[Event], shutdown: seq[Event],
-                  errorHandlerTable: ErrorHandlerTable, appData: StringTableRef): Prologue {.inline.} =
-  Prologue(server: newPrologueServer(true, settings.getOrDefault(
-           "reusePort").getBool), gScope: GlobalScope(settings: settings, ctxSettings: ctxSettings, router: router, 
+func newPrologue*(
+  settings: Settings, ctxSettings: CtxSettings, router: Router,
+  reversedRouter: ReversedRouter, reRouter: ReRouter,
+  middlewares: openArray[HandlerAsync], startup: openArray[Event], 
+  shutdown: openArray[Event], errorHandlerTable: ErrorHandlerTable, 
+  appData: StringTableRef
+): Prologue {.inline.} =
+  Prologue(server: newPrologueServer(true, settings.reusePort, 
+                                    settings["prologue"].getOrDefault("maxBody").getInt(8388608)), 
+           gScope: GlobalScope(settings: settings, ctxSettings: ctxSettings, router: router, 
            reversedRouter: reversedRouter, reRouter: reRouter, appData: appData),
-           middlewares: middlewares, startup: startup, shutdown: shutdown,
+           middlewares: @middlewares, startup: @startup, shutdown: @shutdown,
            errorHandlerTable: errorHandlerTable)

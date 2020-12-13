@@ -1,10 +1,23 @@
-import json
+# Copyright 2020 Zeshen Xing
+# 
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+# 
+#     http://www.apache.org/licenses/LICENSE-2.0
+# 
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
 
+import std/[json, strtabs, asyncdispatch]
 
-import ../core/dispatch
 from ../core/application import Prologue, addRoute, appDebug
-from ../core/response import htmlResponse, resp
-from ../core/context import Context, setHeader, staticFileResponse
+from ../core/response import htmlResponse, resp, jsonResponse
+from ../core/context import Context, staticFileResponse, gScope
+from ../core/request import setHeader
 
 
 const
@@ -67,7 +80,7 @@ const
 """
 
 proc openapiHandler*(ctx: Context) {.async.} =
-  await staticFileResponse(ctx, "openapi.json", "docs")
+  resp jsonResponse(parseJson(readFile(ctx.gScope.appData["openApiDocsPath"])))
 
 proc swaggerHandler*(ctx: Context) {.async.} =
   resp htmlResponse(swaggerDocs)
@@ -75,9 +88,10 @@ proc swaggerHandler*(ctx: Context) {.async.} =
 proc redocsHandler*(ctx: Context) {.async.} =
   resp htmlResponse(redocs)
 
-proc serveDocs*(app: Prologue, onlyDebug = false) {.inline.} =
+proc serveDocs*(app: Prologue, source: string, onlyDebug = false) {.inline.} =
   if onlyDebug and not app.appDebug:
     return
+  app.gScope.appData["openApiDocsPath"] = source
   app.addRoute("/openapi.json", openapiHandler)
   app.addRoute("/docs", swaggerHandler)
   app.addRoute("/redocs", redocsHandler)

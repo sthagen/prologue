@@ -1,11 +1,11 @@
 strategy:
   maxParallel: 10
   matrix:
-    Windows_stable_64bit:
-      VM: 'windows-latest'
-      UCPU: amd64
-      CHANNEL: stable
-      TEST_LANG: c
+    # Windows_stable_64bit:
+    #   VM: 'windows-latest'
+    #   UCPU: amd64
+    #   CHANNEL: stable
+    #   TEST_LANG: c
     Windows_devel_64bit:
       VM: 'windows-latest'
       UCPU: amd64
@@ -16,11 +16,11 @@ strategy:
       UCPU: amd64
       CHANNEL: devel
       TEST_LANG: cpp
-    Linux_stable_64bit:
-      VM: 'ubuntu-latest'
-      UCPU: amd64
-      CHANNEL: stable
-      TEST_LANG: c
+    # Linux_stable_64bit:
+    #   VM: 'ubuntu-latest'
+    #   UCPU: amd64
+    #   CHANNEL: stable
+    #   TEST_LANG: c
     Linux_devel_64bit:
       VM: 'ubuntu-latest'
       UCPU: amd64
@@ -36,11 +36,11 @@ strategy:
     #   UCPU: amd64
     #   CHANNEL: stable
     #   TEST_LANG: c
-    # MacOS_devel_64bit:
-    #   VM: 'macOS-latest'
-    #   UCPU: amd64
-    #   CHANNEL: devel
-    #   TEST_LANG: c
+    MacOS_devel_64bit:
+      VM: 'macOS-latest'
+      UCPU: amd64
+      CHANNEL: devel
+      TEST_LANG: c
 pool:
   vmImage: $(VM)
 
@@ -164,5 +164,6 @@ steps:
   - bash: |
       echo "PATH=${PATH}"
       export ucpu=${UCPU}
+      logue extension all
       nimble tests
     displayName: 'Testing the package'

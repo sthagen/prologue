@@ -1,13 +1,26 @@
-import httpcore
-from strutils import toLowerAscii, join
+# Copyright 2020 Zeshen Xing
+# 
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+# 
+#     http://www.apache.org/licenses/LICENSE-2.0
+# 
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
 
+from std/strutils import toLowerAscii, join
+import std/asyncdispatch
 
-import ../core/dispatch
 from ../core/middlewaresbase import switch
 from ../core/context import Context, HandlerAsync
 from ../core/response import plainTextResponse, resp, setHeader, addHeader
 from ../core/basicregex import re, Regex, RegexMatch, match
 import ../core/request
+import ../core/httpcore/httplogue
 
 
 const
@@ -15,8 +28,8 @@ const
 
 
 proc isAllowedOrigin(origin: string, allowAllOrigins: bool,
-                     allowOrigins: sink seq[string], 
-                     allowOriginRegex: sink Regex): bool =
+                     allowOrigins: seq[string], 
+                     allowOriginRegex: Regex): bool =
   if allowAllOrigins:
     return true
 
@@ -27,16 +40,15 @@ proc isAllowedOrigin(origin: string, allowAllOrigins: bool,
   return origin in allowOrigins
 
 proc CorsMiddleware*(
-  allowOrigins: sink seq[string] = @[],
-  allowOriginRegex: sink Regex = re"",
-  allowMethods: sink seq[string] = @["get"],
-  allowHeaders: sink seq[string] = @[],
-  exposeHeaders: sink seq[string] = @[],
+  allowOrigins: seq[string] = @[],
+  allowOriginRegex: Regex = re"",
+  allowMethods: seq[string] = @["get"],
+  allowHeaders: seq[string] = @[],
+  exposeHeaders: seq[string] = @[],
   allowCredentials = false,
   maxAge = 7200,
   excludeEndPoint: seq[string] = @[]
-  ): HandlerAsync =
-
+): HandlerAsync =
   result = proc(ctx: Context) {.async.} =
     # just for example
     if ctx.request.path in excludeEndPoint:
@@ -75,7 +87,7 @@ proc CorsMiddleware*(
     # doesn't use the same method as the actual request.
     if ctx.request.reqMethod == HttpOptions and reqHeaders.hasKey("Access-Control-Request-Method"):
       var
-        preflightHeaders = newHttpHeaders()
+        preflightHeaders = initResponseHeaders()
         errorMsg: seq[string] = @[]
 
       let
@@ -117,10 +129,10 @@ proc CorsMiddleware*(
 
       if errorMsg.len != 0:
         resp plainTextResponse("Disallowed CORS " &
-            errorMsg.join(", "), Http403, preflightHeaders)
+            errorMsg.join(", "), Http403, move preflightHeaders)
       else:
         resp plainTextResponse("Ok", Http200,
-            preflightHeaders)
+            move preflightHeaders)
       return
 
     # simple headers

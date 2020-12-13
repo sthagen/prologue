@@ -1,5 +1,23 @@
-import strutils, strtabs, parseutils, tables
+# Copyright 2020 Zeshen Xing
+# 
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+# 
+#     http://www.apache.org/licenses/LICENSE-2.0
+# 
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+import std/[strutils, strtabs, parseutils, tables, options]
 
+import ./encode
+
+
+const
+  FlashPrefix = "_flash_"
 
 type
   BadSecretKeyError* = object of CatchableError
@@ -15,39 +33,45 @@ type
     modified*: bool
     accessed*: bool
 
+  FlashLevel* = enum
+    Info = "info"
+    Warning = "warning"
+    Error = "error"
+    Fault = "fault"
+
   FormPart* = object
     data*: OrderedTableRef[string, tuple[params: StringTableRef, body: string]]
 
 
-proc initFormPart*(): FormPart {.inline.} =
+func initFormPart*(): FormPart =
   FormPart(data: newOrderedTable[string, (StringTableRef, string)]())
 
-proc `[]`*(formPart: FormPart, key: string): tuple[params: StringTableRef,
-    body: string] {.inline.} =
+func `[]`*(formPart: FormPart, key: string): tuple[params: StringTableRef,
+           body: string] {.inline.} =
   formPart.data[key]
 
 proc `[]=`*(formPart: FormPart, key: string, body: string) {.inline.} =
   formPart.data[key] = (newStringTable(mode = modeCaseSensitive), body)
 
-proc tryParseInt(value: sink string, default: int): int {.inline.} =
+func tryParseInt(value: string, default: int): int {.inline.} =
   try:
     result = parseInt(value)
   except ValueError:
     result = default
 
-proc tryParseFloat(value: sink string, default: float): float {.inline.} =
+func tryParseFloat(value: string, default: float): float {.inline.} =
   try:
     result = parseFloat(value)
   except ValueError:
     result = default
 
-proc tryParseBool(value: sink string, default: bool): bool {.inline.} =
+func tryParseBool(value: string, default: bool): bool {.inline.} =
   try:
     result = parseBool(value)
   except ValueError:
     result = default
 
-proc parseValue*[T: BaseType](value: string, default: T): T {.inline.} =
+func parseValue*[T: BaseType](value: string, default: T): T {.inline.} =
   if value.len == 0:
     return default
 
@@ -60,62 +84,75 @@ proc parseValue*[T: BaseType](value: string, default: T): T {.inline.} =
   elif T is string:
     result = value
 
-proc len*(secretKey: SecretKey): int {.inline.} =
+func len*(secretKey: SecretKey): int {.inline.} =
   string(secretKey).len
 
-proc `$`*(secretKey: SecretKey): string {.inline.} =
+func `$`*(secretKey: SecretKey): string {.inline.} =
   ## Hide secretKey's value
   "SecretKey(********)"
 
-proc initSession*(data: StringTableRef, newCreated = false, modified = false,
+func newSession*(data: StringTableRef, newCreated = false, modified = false,
     accessed = false): Session {.inline.} =
-  Session(data: data, modified: modified)
+  ## Initializes a new session.
+  Session(data: data, newCreated: newCreated, modified: modified, accessed: accessed)
 
-proc update*(session: Session) {.inline.} =
+func update(session: var Session) {.inline.} =
   session.accessed = true
   session.modified = true
 
-proc `[]`*(session: Session, key: string): string {.inline.} =
+func `[]`*(session: var Session, key: string): string {.inline.} =
+  ## Retrieves the value if `key` exists in `session`.
   result = session.data[key]
   session.accessed = true
 
-proc `[]=`*(session: Session, key, value: string) {.inline.} =
+func `[]=`*(session: var Session, key, value: string) {.inline.} =
+  ## sets the (key, value) pair.
   session.data[key] = value
   update(session)
 
-proc len*(session: Session): int {.inline.} =
+func len*(session: Session): int {.inline.} =
+  ## Gets the size of `session`.
   session.data.len
 
-proc getOrDefault*(session: Session, key: string, default = ""): string {.inline.} =
+iterator pairs*(session: Session): tuple[key, val: string] =
+  session.accessed = true
+  for (key, val) in session.data.pairs:
+    yield (key, val)
+
+func getOrDefault*(session: var Session, key: string, default = ""): string {.inline.} =
+  ## Retrieves the value if `key` exists in `session`. Otherwise `default` will be returned.
   if session.data.hasKey(key):
     result = session.data[key]
   else:
     result = default
   session.accessed = true
 
-proc del*(session: Session, key: string) {.inline.} =
+func del*(session: var Session, key: string) {.inline.} =
+  ## Deletes `key` from `session`.
   session.data.del(key)
   update(session)
 
-proc clear*(session: Session) {.inline.} =
+func clear*(session: var Session) {.inline.} =
+  ## Clears the data of `session`.
   session.data.clear(modeCaseSensitive)
   update(session)
 
-proc `$`*(session: Session): string {.inline.} =
+func `$`*(session: Session): string {.inline.} =
   $session.data
 
-proc parseStringTable*(tabs: StringTableRef, s: string) {.inline.} =
+func parseStringTable*(tabs: var StringTableRef, s: string) =
   # """{username: flywind, password: root}"""
   # {:}
-  # make sure {':', ',', '}'} notin key or value
+  # TODO make sure {':', ',', '}'} notin key or value
   if s.len <= 3:
     return
   var
     pos = 0
     key, value: string
-  assert(s[pos] == '{', "StringTable String starts with '{'")
+
   # ignore '{'
-  inc(pos)
+  pos += skipWhile(s, {'{'})
+
   while true:
     pos += s.parseUntil(key, ':', pos)
     # ignore ':'
@@ -130,12 +167,57 @@ proc parseStringTable*(tabs: StringTableRef, s: string) {.inline.} =
     if pos >= s.len:
       break
 
-proc parseStringTable*(s: string): StringTableRef {.inline.} =
-  result = newStringTable(mode = modeCaseSensitive)
-  parseStringTable(result, s)
-
-proc loads*(session: Session, s: string) {.inline.} =
-  session.data.parseStringTable(s)
+proc loads*(session: var Session, s: string) {.inline.} =
+  ## Loads session from strings.
+  session.data = newStringTable(mode = modeCaseSensitive)
+  session.data.parseStringTable(urlsafeBase64Decode(s))
 
 proc dumps*(session: Session): string {.inline.} =
-  $session
+  ## Dumps session to strings.
+  urlsafeBase64Encode($session)
+
+func flash*(session: var Session, msgs: string, category = FlashLevel.Info) {.inline.} =
+  session[FlashPrefix & $category] = msgs
+
+func flash*(session: var Session, msgs: string, category: string) {.inline.} =
+  session[FlashPrefix & category] = msgs
+
+proc messages*(session: var Session): seq[string] =
+  update(session)
+  var delKeys: seq[string]
+  for key, value in session.data:
+    if key.startsWith(FlashPrefix):
+      result.add value
+      delKeys.add key
+
+  for key in delKeys:
+    session.data.del(key)
+
+proc messagesWithCategory*(session: var Session): seq[(string, string)] =
+  update(session)
+  var delKeys: seq[string]
+  for key, value in session.data:
+    if key.startsWith(FlashPrefix):
+      result.add (key[FlashPrefix.len .. ^1], value)
+      delKeys.add key
+
+  for key in delKeys:
+    session.data.del(key)
+
+func getMessage*(session: var Session, category: FlashLevel): Option[string] {.inline.} =
+  update(session)
+  let key = FlashPrefix & $category
+  if session.data.hasKey(key):
+    result = some(session.data[key])
+    session.data.del(key)
+  else:
+    result = none(string)
+
+func getMessage*(session: var Session, category: string): Option[string] {.inline.} =
+  update(session)
+  let key = FlashPrefix & category
+  if session.data.hasKey(key):
+    result = some(session.data[key])
+    session.data.del(key)
+  else:
+    result = none(string)

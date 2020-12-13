@@ -1,13 +1,30 @@
-import httpcore, strtabs
-from htmlgen import input
+# Copyright 2020 Zeshen Xing
+# 
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+# 
+#     http://www.apache.org/licenses/LICENSE-2.0
+# 
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
 
 
-import ../core/dispatch
+import std/[strtabs, asyncdispatch]
+from std/htmlgen import input
+
 from ../core/urandom import randomBytesSeq, randomString, DefaultEntropy
 from ../core/encode import urlsafeBase64Encode, urlsafeBase64Decode
 from ../core/middlewaresbase import switch
 from ../core/context import Context, HandlerAsync, getCookie, setCookie, deleteCookie
 import ../core/request
+import ../core/httpcore/httplogue
+
+
+import pkg/cookiejar
 
 
 const
@@ -30,10 +47,10 @@ proc makeToken(secret: openArray[byte]): string {.inline.} =
     mask = randomBytesSeq(DefaultSecretSize)
     token = newSeq[byte](DefaultTokenSize)
 
-  for idx in DefaultSecretSize ..< DefaultTokenSize:
+  for idx in 0 ..< DefaultSecretSize:
     token[idx] = mask[idx] + secret[idx]
 
-  token[0 ..< DefaultSecretSize] = move mask
+  token[DefaultSecretSize ..< DefaultTokenSize] = move mask
 
   result = token.urlsafeBase64Encode
 
@@ -42,6 +59,10 @@ proc recoverToken(token: string): seq[byte] {.inline.} =
     token = token.urlsafeBase64Decode
 
   result = newSeq[byte](DefaultSecretSize)
+
+  if token.len != DefaultTokenSize:
+    return
+
   for idx in 0 ..< DefaultSecretSize:
     result[idx] = byte(token[idx]) - byte(token[DefaultSecretSize + idx])
 
@@ -60,12 +81,12 @@ proc checkToken*(checked, secret: string): bool {.inline.} =
     checked = checked.recoverToken
     secret = secret.recoverToken
 
-  checked == secret
+  result = checked == secret
 
 proc csrfToken*(ctx: Context, tokenName = DefaultTokenName): string {.inline.} =
   input(`type` = "hidden", name = tokenName, value = generateToken(ctx, tokenName))
 
-# logging potential csrf attack
+# TODO logging potential csrf attack
 proc csrfMiddleWare*(tokenName = DefaultTokenName): HandlerAsync =
   result = proc(ctx: Context) {.async.} =
     # "safe method"
@@ -85,12 +106,13 @@ proc csrfMiddleWare*(tokenName = DefaultTokenName): HandlerAsync =
       return
 
     # forms don't use csrfToken
-    if ctx.getToken(tokenName).len == 0:
+    let token = ctx.getToken(tokenName)
+    if token.len == 0:
       reject(ctx)
       return
 
     # not equal
-    if not checkToken(ctx.request.postParams[tokenName], ctx.getToken(tokenName)):
+    if not checkToken(ctx.request.postParams[tokenName], token):
       reject(ctx)
       return
 
